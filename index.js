@@ -1,5 +1,6 @@
 const canvas = document.getElementById('canvas');
 const context = canvas.getContext("2d");
+const blur = false;
 
 const resizeCanvas = () => {
   canvas.width = window.innerWidth;
@@ -20,8 +21,8 @@ class Player{
     this.speed = 0;
     this.acceleration = 1;
     this.decceleration = 1;
-    this.maxMaxSpeed = 35;
-    this.minMaxSpeed = 15;
+    this.maxMaxSpeed = 40;
+    this.minMaxSpeed = 30;
     this.maxSpeed = this.maxMaxSpeed;
 
     this.x = 0;
@@ -53,11 +54,11 @@ class Player{
       }
 
       this.acceleration = (1-(this.speed/this.maxSpeed))/2;
-      this.decceleration = (this.speed/this.maxSpeed)/2;
+      this.decceleration = (this.speed/this.maxSpeed)/3;
       if(this.activeAcc && !this.activeDown){
         this.speed += this.acceleration;
       }else{
-        this.speed -= this.activeDown ? this.decceleration*3 : this.decceleration;
+        this.speed -= this.activeDown ? this.decceleration*5 : this.decceleration;
         if(this.speed < 0){
           this.speed = 0;
         }
@@ -81,8 +82,8 @@ class Player{
 
       this.radians = (-this.rotation+90) * 0.0174533;
 
-      this.vy = -Math.sin(this.radians) * this.speed;
-      this.vx = Math.cos(this.radians) * this.speed;
+      this.vy = -Math.sin(this.radians) * ((this.speed < 2 && this.activeUp) ? 2 : this.speed);
+      this.vx = Math.cos(this.radians) * ((this.speed < 2 && this.activeUp) ? 2 : this.speed);
 
       this.y += this.vy;
       this.x += this.vx;
@@ -105,49 +106,118 @@ class Player{
     }
 
     this.render = (context) => {
-      if(!this.hasInited){
-        this.init();
-      }
-
       context.fillStyle = "#fff";
       context.strokeStyle = "#fff";
-      context.shadowBlur = 10;
-      context.shadowColor = "#fff";
+      if(blur){
+        context.shadowBlur = 30;
+        context.shadowColor = "#fff";
+      }
       context.save();
       context.beginPath();
       context.translate(canvas.width/2, canvas.height/2 - this.speed*4);
       context.rotate(this.rotationV*4 * Math.PI / 180);
       context.scale(1.2 - (this.speed/this.maxMaxSpeed)/2, 1.2 - (this.speed/this.maxMaxSpeed)/2);
       context.moveTo(0, 0);
-      context.lineTo(-15 + this.speed/5 - (this.activeDown ? 5 : 0), 35);
+      context.lineTo(-15 + this.speed/15, 35);
       context.lineTo(0, 25);
-      context.lineTo(15 - this.speed/5 + (this.activeDown ? 5 : 0), 35);
+      context.lineTo(15 - this.speed/15, 35);
       context.lineTo(0, 0);
       context.stroke();
       context.closePath();
       context.restore();
     }
+  }
+}
 
-    this.hasInited = false;
-    this.init = () => {
-      this.x = canvas.width/2;
-      this.y = canvas.height/2;
-      this.hasInited = true;
+class Structure {
+  constructor(x, y, width, height, depth){
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.depth = depth;
+
+    this.render = (context, offset, player) => {
+      const offX = -(this.x - player.x)/(70 - this.depth);
+      const offY = -(this.y - player.y)/(70 - this.depth);
+
+      const startX = this.x - this.width/2;
+      const startY = this.y - this.height/2;
+
+      context.beginPath();
+      context.rect(startX - player.x, startY - player.y, this.width, this.height);
+
+      context.moveTo(startX - player.x, startY - player.y);
+      context.lineTo(startX - player.x - offX, startY - player.y - offY);
+
+      context.moveTo(startX - player.x + this.width, startY - player.y);
+      context.lineTo(startX - player.x + this.width - offX, startY - player.y - offY);
+
+      context.moveTo(startX - player.x, startY - player.y + this.height);
+      context.lineTo(startX - player.x - offX, startY - player.y + this.height - offY);
+
+      context.moveTo(startX - player.x + this.width, startY - player.y + this.height);
+      context.lineTo(startX - player.x + this.width - offX, startY - player.y + this.height - offY);
+
+      context.rect(startX - player.x - offX, startY - player.y - offY, this.width, this.height);
+      context.stroke();
+      context.closePath();
+
+      context.fillStyle = "#603";
+      context.clearRect(startX - player.x - offX + 1, startY - player.y - offY + 1, this.width - 2, this.height - 2);
+     }
+
+    this.shouldRender = (x, y, offset) => {
+      if(x - offset < this.x && y - offset < this.y){
+        return true;
+      }
+      return false;
     }
   }
 }
 
-class Map {
+const structures = [
+  new Structure(0, 0, 600, 150, 65),
+  new Structure(-62.5, 250, 125, 150, 65),
+  new Structure(325, 250, 400, 150, 65),
+  new Structure(62.5, -250, 125, 150, 65),
+  new Structure(-325, -250, 400, 150, 65),
+];
+
+class MapRenderer {
+  constructor(height, width) {
+    this.renderFieldSize = Math.sqrt(height*height + width*width);
+    this.overscanAmount = width > height ? this.renderFieldSize-width : this.renderFieldSize-height;
+    this.renderAtPosition = (player, context) => {
+      context.save();
+      context.translate(canvas.width/2, canvas.height/2);
+      context.rotate(-player.rotation * Math.PI / 180);
+      context.scale(1.2 - (player.speed/player.maxMaxSpeed)/3, 1.2 - (player.speed/player.maxMaxSpeed)/3);
+      context.strokeStyle = "#fff"
+      
+      for(let structure of structures){
+        structure.render(context, this.renderFieldSize/2, player);
+      }
+
+      context.restore();
+    }
+  }
+}
+
+class EffectsLayer {
   constructor() {
     this.offsetX = 0;
     this.offsetY = 0;
     this.gridGap = 500;
     this.rotation = 1;
 
-    this.render = (context, player) => {
-      context.strokeStyle = "#fff";
-      context.shadowBlur = 15;
-      context.shadowColor = "#ff4477cc";
+    this.renderGrid = (context, player) => {
+      context.strokeStyle = "#ffffff11";
+      if(blur){
+        context.shadowBlur = 50;
+        context.shadowColor = "#ff4477cc";
+      }
+      
       context.lineWidth = 2;
 
       this.startX = canvas.width/2 - (player.x % 500);
@@ -187,45 +257,49 @@ class Map {
 
       context.closePath();
       context.restore();
+    }
 
+    this.renderLines = (context, player) => {
       let test = 0;
-      context.shadowBlur = 0;
-      context.shadowColor = "#00000000";
-      context.strokeStyle = `#ffffff18`;
+      if(blur){
+        context.shadowBlur = 0;
+        context.shadowColor = "#00000000";
+      }
+      context.strokeStyle = `#aaaaaa18`;
       context.lineWidth = 3;
       context.beginPath();
       while(test < canvas.height){
         context.moveTo(0, test);
         context.lineTo(canvas.width, test);
-
+  
         test+=6;
       }
       context.stroke();
       context.closePath();
-    }
-  }
-}
 
-class Indicators {
-  constructor() {
-    this.render = (context, player) => {
-      context.font = "24px Arial";
-      context.fillText("Speed: "+(parseInt(Math.ceil(player.speed)) >= 35 ? 'MAX' : parseInt(Math.ceil(player.speed))), 30, canvas.height - 30);
+      context.font = "20px Numbers";
+      context.fillText("SPEED: "+(parseInt(Math.ceil(player.speed)) >= player.maxMaxSpeed ? 'MAX' : parseInt(Math.ceil(player.speed))), 30, canvas.height - 30);
     }
   }
 }
 
 let newPlayer = new Player();
-let newMap = new Map();
-let indicators = new Indicators();
-window.addEventListener('keydown', function(event) {newPlayer.updateKey(event.keyCode, true)}, false);
-window.addEventListener('keyup', function(event) {newPlayer.updateKey(event.keyCode, false)}, false);
+let renderer = new MapRenderer(canvas.width, canvas.height);
+let effects = new EffectsLayer();
+
+const removeInstructions = () => {
+  document.getElementById('instructions').innerHTML = "";
+}
+
+window.addEventListener('keydown', function(event) {newPlayer.updateKey(event.keyCode, true); removeInstructions();}, false);
+window.addEventListener('keyup', function(event) {newPlayer.updateKey(event.keyCode, false);}, false);
 
 const updateCanvas = () => {
   context.clearRect(0, 0, canvas.width, canvas.height);
-  newMap.render(context, newPlayer);
+  effects.renderGrid(context, newPlayer);
   newPlayer.render(context);
-  indicators.render(context, newPlayer);
+  renderer.renderAtPosition(newPlayer, context);
+  effects.renderLines(context, newPlayer);
 }
 
 const newFrame = function(){
