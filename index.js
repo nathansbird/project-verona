@@ -1,6 +1,8 @@
 const canvas = document.getElementById('canvas');
 const context = canvas.getContext("2d");
-const blur = false;
+
+const glow = true;
+const lines = false;
 
 const resizeCanvas = () => {
   canvas.width = window.innerWidth;
@@ -108,7 +110,7 @@ class Player{
     this.render = (context) => {
       context.fillStyle = "#fff";
       context.strokeStyle = "#fff";
-      if(blur){
+      if(glow){
         context.shadowBlur = 30;
         context.shadowColor = "#fff";
       }
@@ -213,7 +215,7 @@ class EffectsLayer {
 
     this.renderGrid = (context, player) => {
       context.strokeStyle = "#ffffff11";
-      if(blur){
+      if(glow){
         context.shadowBlur = 50;
         context.shadowColor = "#ff4477cc";
       }
@@ -261,7 +263,7 @@ class EffectsLayer {
 
     this.renderLines = (context, player) => {
       let test = 0;
-      if(blur){
+      if(glow){
         context.shadowBlur = 0;
         context.shadowColor = "#00000000";
       }
@@ -299,7 +301,7 @@ const updateCanvas = () => {
   effects.renderGrid(context, newPlayer);
   newPlayer.render(context);
   renderer.renderAtPosition(newPlayer, context);
-  effects.renderLines(context, newPlayer);
+  if(lines){effects.renderLines(context, newPlayer);}
 }
 
 const newFrame = function(){
