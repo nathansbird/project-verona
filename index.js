@@ -278,7 +278,9 @@ class EffectsLayer {
       }
       context.stroke();
       context.closePath();
+    }
 
+    this.renderText = (context, player) => {
       context.font = "20px Numbers";
       context.fillText("SPEED: "+(parseInt(Math.ceil(player.speed)) >= player.maxMaxSpeed ? 'MAX' : parseInt(Math.ceil(player.speed))), 30, canvas.height - 30);
     }
@@ -301,6 +303,7 @@ const updateCanvas = () => {
   effects.renderGrid(context, newPlayer);
   newPlayer.render(context);
   renderer.renderAtPosition(newPlayer, context);
+  effects.renderText(context, newPlayer);
   if(lines){effects.renderLines(context, newPlayer);}
 }
 
