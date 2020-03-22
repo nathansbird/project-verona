@@ -71,7 +71,11 @@ class OtherPlayer{
     this.x = 0;
     this.y = 0;
 
+    this.realX = 0;
+    this.realY = 0;
+
     this.rotation = 0;
+    this.realRotation = 0;
     this.rotationV = 0;
     this.maxRotationV = 0;
     this.maxMaxRotationV = 4.0;
@@ -86,6 +90,9 @@ class OtherPlayer{
 
     this.vy = 0;
     this.vx = 0;
+
+    this.realVy = 0;
+    this.realVx = 0;
 
     this.update = () => {
       if(this.activeRight || this.activeLeft){
@@ -130,14 +137,24 @@ class OtherPlayer{
       this.x += this.vx;
 
       this.rotation += this.rotationV;
+
+      this.blendWithReal();
+    }
+
+    this.blendWithReal = () => {
+      this.x += (this.realX - this.x)/2;
+      this.y += (this.realY - this.y)/2;
+      this.vx += (this.realVx - this.vx)/2;
+      this.vy += (this.realVy - this.vy)/2;
+      this.rotation += (this.realRotation - this.rotation)/2;
     }
 
     this.newValues = (x, y, vx, vy, rotation) => {
-      this.x = x; 
-      this.y = y; 
-      this.vx = vx; 
-      this.vy = vy; 
-      this.rotation = rotation;
+      this.realX = x; 
+      this.realY = y; 
+      this.realVx = vx; 
+      this.realVy = vy; 
+      this.realRotation = rotation;
     }
 
     this.keys = (acc, left, right, down, up) => {
@@ -492,7 +509,7 @@ const keys = () => {
 setInterval(newFrame, 1000/60);
 
 //Correction update clock
-setInterval(correction, 2000);
+setInterval(correction, 1000/20);
 
 //Keys update clock
 setInterval(keys, 1000/60);

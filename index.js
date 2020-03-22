@@ -65,5 +65,8 @@ http.listen(port, function(){
   console.log('listening');
 });
 
+//Player update clock
+setInterval(broadcast, 1000/20);
+
 //Keys update clock
 setInterval(keys, 1000/60);
