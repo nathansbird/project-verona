@@ -20,9 +20,10 @@ app.use('/static/assets', express.static(__dirname + '/src/assets'));
 
 const sockets = [];
 const player_data = {};
+const player_keys = {};
 io.on('connection', (socket) => {
   sockets.push(socket);
-  player_data[socket.id] = {x: 0, y: 0, vx: 0, vy: 0, speed: 0, rotation: 0};
+  player_data[socket.id] = {x: 0, y: 0, vx: 0, vy: 0, rotation: 0};
   const filtered = allExcept(socket.id);
   for(s of filtered){
     s.emit('new_player', {id: s.id});
@@ -30,6 +31,10 @@ io.on('connection', (socket) => {
 
   socket.on('position', (player) => {
     player_data[socket.id] = player;
+  });
+
+  socket.on('keys', (keys) => {
+    player_keys[socket.id] = keys;
   });
   
   socket.on('disconnect', function(){
@@ -44,6 +49,12 @@ const broadcast = () => {
   }
 }
 
+const keys = () => {
+  for(s of sockets){
+    s.emit('keys', player_keys);
+  }
+}
+
 const allExcept = (id) => {
   return sockets.filter(item => {
     return item.id != id;
@@ -54,5 +65,5 @@ http.listen(port, function(){
   console.log('listening');
 });
 
-//Position update clock
-setInterval(broadcast, 1000/20);
+//Keys update clock
+setInterval(keys, 1000/60);

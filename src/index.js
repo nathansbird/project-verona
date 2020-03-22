@@ -32,7 +32,25 @@ socket.on('players', (players) => {
 
   for(player in players){
     if(otherPlayers[player] != null){
-      otherPlayers[player].newValues(players[player].x, players[player].y, players[player].vx, players[player].vy, players[player].speed, players[player].maxMaxSpeed, players[player].rotation);
+      otherPlayers[player].newValues(players[player].x, players[player].y, players[player].vx, players[player].vy, players[player].rotation);
+    }else{
+      otherPlayers[player] = new OtherPlayer();
+    }
+  }
+});
+
+socket.on('keys', (players) => {
+  delete players[socket.id]
+
+  for(player in otherPlayers){
+    if(players[player] == null){
+      delete otherPlayers[player];
+    }
+  }
+
+  for(player in players){
+    if(otherPlayers[player] != null){
+      otherPlayers[player].keys(players[player][0], players[player][1], players[player][2], players[player][3], players[player][4]);
     }else{
       otherPlayers[player] = new OtherPlayer();
     }
@@ -43,25 +61,91 @@ const otherPlayers = {};
 
 class OtherPlayer{
   constructor(){
+    this.speed = 0;
+    this.acceleration = 1;
+    this.decceleration = 1;
+    this.maxMaxSpeed = 40;
+    this.minMaxSpeed = 30;
+    this.maxSpeed = this.maxMaxSpeed;
+
     this.x = 0;
     this.y = 0;
-    this.vx = 0;
-    this.vy = 0;
-    this.speed = 0;
+
     this.rotation = 0;
+    this.rotationV = 0;
+    this.maxRotationV = 0;
+    this.maxMaxRotationV = 4.0;
+    this.minMaxRotationV = 1.0;
+
+    this.radians;
+
+    this.activeLeft;
+    this.activeRight;
+    this.activeDown;
+    this.activeAcc;
+
+    this.vy = 0;
+    this.vx = 0;
 
     this.update = () => {
+      if(this.activeRight || this.activeLeft){
+        this.maxSpeed = this.minMaxSpeed;
+      }else{
+        this.maxSpeed = this.maxMaxSpeed;
+      }
+
+      this.acceleration = (1-(this.speed/this.maxSpeed))/2;
+      this.decceleration = (this.speed/this.maxSpeed)/3;
+      if(this.activeAcc && !this.activeDown){
+        this.speed += this.acceleration;
+      }else{
+        this.speed -= this.activeDown ? this.decceleration*5 : this.decceleration;
+        if(this.speed < 0){
+          this.speed = 0;
+        }
+      }
+
+      this.maxRotationV = this.minMaxRotationV+(this.maxMaxRotationV-this.minMaxRotationV)*(this.speed/this.maxSpeed)
+
+      if(this.activeLeft){
+        this.rotationV -= 0.1;
+      }else if(this.activeRight){
+        this.rotationV += 0.1;
+      }else{
+        this.rotationV -= (this.rotationV/this.maxRotationV)/16;
+      }
+
+      if(this.rotationV <= -this.maxRotationV){
+        this.rotationV = -this.maxRotationV;
+      }else if(this.rotationV >= this.maxRotationV){
+        this.rotationV = this.maxRotationV;
+      }
+
+      this.radians = (-this.rotation+90) * 0.0174533;
+
+      this.vy = -Math.sin(this.radians) * ((this.speed < 2 && this.activeUp) ? 2 : this.speed);
+      this.vx = Math.cos(this.radians) * ((this.speed < 2 && this.activeUp) ? 2 : this.speed);
+
       this.y += this.vy;
       this.x += this.vx;
+
+      this.rotation += this.rotationV;
     }
 
-    this.newValues = (x, y, vx, vy, speed, maxMaxSpeed, rotation) => {
+    this.newValues = (x, y, vx, vy, rotation) => {
       this.x = x; 
       this.y = y; 
       this.vx = vx; 
       this.vy = vy; 
-      this.speed = speed;
       this.rotation = rotation;
+    }
+
+    this.keys = (acc, left, right, down, up) => {
+      this.activeAcc = acc;
+      this.activeLeft = left;
+      this.activeRight = right;
+      this.activeDown = down;
+      this.activeUp = up;
     }
 
     this.newValues(0, 0, 0, 0, 0, 0);
@@ -93,8 +177,6 @@ class OtherPlayer{
 
 class Player{
   constructor(){
-    this.size = 60;
-
     this.speed = 0;
     this.acceleration = 1;
     this.decceleration = 1;
@@ -105,9 +187,6 @@ class Player{
     this.x = 0;
     this.y = 0;
 
-    this.angleX = 0.0;
-    this.angleY = 1.0;
-
     this.rotation = 0;
     this.rotationV = 0;
     this.maxRotationV = 0;
@@ -115,12 +194,11 @@ class Player{
     this.minMaxRotationV = 1.0;
 
     this.radians;
-    this.spin = 0;
 
     this.activeLeft;
     this.activeRight;
-    this.activeUp;
     this.activeDown;
+    this.activeUp;
     this.activeAcc;
 
     this.vy = 0;
@@ -402,12 +480,19 @@ const newFrame = () => {
   updateCanvas();
 }
 
-const broadcast = () => {
-  socket.emit('position', {x: newPlayer.x, y: newPlayer.y, vx: newPlayer.vx, vy: newPlayer.vy, speed: newPlayer.speed, rotation: newPlayer.rotation});
+const correction = () => {
+  socket.emit('position', {x: parseInt(newPlayer.x), y: parseInt(newPlayer.y), vx: parseInt(newPlayer.vx*100)/100, vy: parseInt(newPlayer.vy*100)/100, rotation: parseInt(newPlayer.rotation)});
+}
+
+const keys = () => {
+  socket.emit('keys', [newPlayer.activeAcc, newPlayer.activeLeft, newPlayer.activeRight, newPlayer.activeDown, newPlayer.activeUp]);
 }
 
 //Frame gen clock
 setInterval(newFrame, 1000/60);
 
-//Position update clock
-setInterval(broadcast, 1000/20);
+//Correction update clock
+setInterval(correction, 2000);
+
+//Keys update clock
+setInterval(keys, 1000/60);
