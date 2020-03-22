@@ -509,7 +509,7 @@ const keys = () => {
 setInterval(newFrame, 1000/60);
 
 //Correction update clock
-setInterval(correction, 1000/20);
+setInterval(correction, 1000/30);
 
 //Keys update clock
 setInterval(keys, 1000/60);
