@@ -1,6 +1,38 @@
 const canvas = document.getElementById('canvas');
 const context = canvas.getContext("2d");
 
+const shootingSound = new Audio('/static/assets/shooting.wav');
+const newPlayerSound = new Audio('/static/assets/new_player.wav');
+const dieSound = new Audio('/static/assets/die.wav');
+const killSound = new Audio('/static/assets/kill.wav');
+
+var atmosphere_sound = new Howl({
+  src: ['/static/assets/atmosphere.wav'],
+  loop: true
+});
+
+var menu_sound = new Howl({
+  src: ['/static/assets/glide_menu_loop.wav'],
+  loop: true,
+});
+
+var intro_sound = new Howl({
+  src: ['/static/assets/intro_start.wav'],
+  loop: false
+});
+
+var tutorial_sound = new Howl({
+  src: ['/static/assets/intro_loop.wav'],
+  loop: true
+});
+
+//intro_sound.play();
+intro_sound.on('end', () => {
+  tutorial_sound.play();
+});
+
+atmosphere_sound.play();
+
 const glow = false;
 const lines = false;
 
@@ -35,6 +67,7 @@ socket.on('players', (players) => {
       otherPlayers[player].newValues(players[player].x, players[player].y, players[player].vx, players[player].vy, players[player].rotation);
     }else{
       otherPlayers[player] = new OtherPlayer();
+      newPlayerSound.play();
     }
   }
 });
@@ -142,11 +175,11 @@ class OtherPlayer{
     }
 
     this.blendWithReal = () => {
-      this.x += (this.realX - this.x)/2;
-      this.y += (this.realY - this.y)/2;
-      this.vx += (this.realVx - this.vx)/2;
-      this.vy += (this.realVy - this.vy)/2;
-      this.rotation += (this.realRotation - this.rotation)/2;
+      this.x += (this.realX - this.x)/10;
+      this.y += (this.realY - this.y)/10;
+      this.vx += (this.realVx - this.vx)/10;
+      this.vy += (this.realVy - this.vy)/10;
+      this.rotation += (this.realRotation - this.rotation)/10;
     }
 
     this.newValues = (x, y, vx, vy, rotation) => {
@@ -162,8 +195,7 @@ class OtherPlayer{
       this.activeLeft = left;
       this.activeRight = right;
       this.activeDown = down;
-      this.activeUp = up;
-    }
+     }
 
     this.newValues(0, 0, 0, 0, 0, 0);
 
@@ -215,11 +247,12 @@ class Player{
     this.activeLeft;
     this.activeRight;
     this.activeDown;
-    this.activeUp;
     this.activeAcc;
 
     this.vy = 0;
     this.vx = 0;
+
+    this.jerk = 0;
 
     this.update = () => {
       if(this.activeRight || this.activeLeft){
@@ -260,6 +293,8 @@ class Player{
       this.vy = -Math.sin(this.radians) * ((this.speed < 2 && this.activeUp) ? 2 : this.speed);
       this.vx = Math.cos(this.radians) * ((this.speed < 2 && this.activeUp) ? 2 : this.speed);
 
+      this.jerk -= this.jerk/4;
+
       this.y += this.vy;
       this.x += this.vx;
 
@@ -267,18 +302,41 @@ class Player{
     }
     
     this.updateKey = (key, active) => {
+      if(key == 32){
+        this.shooting(active);
+      }
+
       if(key == 37 || key == 65){
         this.activeLeft = active;
-      }else if(key == 38 || key == 87){
-        this.activeUp = active;
       }else if(key == 39 || key == 68){
         this.activeRight = active;
       }else if(key == 40 || key == 83){
         this.activeDown = active;
-      }else if(key == 32){
+      }else if(key == 38 || key == 87){
         this.activeAcc = active;
       }
     }
+
+    this.isShooting = false;
+    this.ammo = 25;
+    this.shooting = (active) => {
+      this.isShooting = active;
+      if(active){
+        shootingSound.play();
+      }else{
+        shootingSound.pause();
+        shootingSound.currentTime = 0;
+      }
+    }
+
+    this.kick = () => {
+      if(this.isShooting && this.ammo > 0){
+        this.jerk = 10;
+        this.ammo--;
+      }
+    }
+
+    setInterval(this.kick, 90);
 
     this.render = (context) => {
       context.fillStyle = "#fff";
@@ -289,7 +347,7 @@ class Player{
       }
       context.save();
       context.beginPath();
-      context.translate(canvas.width/2, canvas.height/2 - this.speed*4);
+      context.translate(canvas.width/2, canvas.height/2 - this.speed*4 + this.jerk);
       context.rotate(this.rotationV*4 * Math.PI / 180);
       context.scale(1.2 - (this.speed/this.maxMaxSpeed)/2, 1.2 - (this.speed/this.maxMaxSpeed)/2);
       context.moveTo(0, 0);
@@ -300,6 +358,14 @@ class Player{
       context.stroke();
       context.closePath();
       context.restore();
+    }
+
+    this.die = () => {
+      dieSound.play();
+    }
+
+    this.notifyKill = (player) => {
+      killSound.play();
     }
   }
 }

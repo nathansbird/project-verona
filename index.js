@@ -39,6 +39,7 @@ io.on('connection', (socket) => {
   
   socket.on('disconnect', function(){
     delete player_data[socket.id];
+    delete player_keys[socket.id];
     sockets.splice(sockets.indexOf(socket))
   });
 })
