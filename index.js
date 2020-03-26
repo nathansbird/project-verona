@@ -17,6 +17,7 @@ app.get('/index.js', function(req, res){
 });
 
 app.use('/static/assets', express.static(__dirname + '/src/assets'));
+app.use('/rooms', express.static(__dirname + '/src/rooms'));
 
 const sockets = [];
 const player_data = {};

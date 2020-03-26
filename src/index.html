@@ -8,15 +8,22 @@
   <title>Glide</title>
 </head>
 <body>
-  <div class="container">
+  <div id="intro_container">
+    <canvas id="intro_canvas"></canvas>
+    <button id="skip_intro" class="skip_button" onclick="">SKIP INTRO</button>
+  </div>
+  <div id="lobby_container">
     <div id="instructions">
       <p id="main">[SPACE] TO ACCELERATE</p>
       <p id="sub">[WASD] OR [ARROWS] TO STEER, BRAKE, AND CRAWL</p>
     </div>
-    <canvas id="canvas"></canvas>
+    <canvas id="lobby_canvas"></canvas>
   </div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.1.3/howler.min.js"></script>
-  <script src="index.js"></script>
+
+  <!--<script type="module" src="/rooms/menu.js"></script>
+  <script type="module" src="/rooms/arena.js"></script>-->
+  <script type="module" src="/index.js"></script>
 </body>
 </html>
