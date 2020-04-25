@@ -347,35 +347,36 @@ class Structure {
     this.depth = depth;
 
     this.render = (context, offset, player) => {
-      const offX = -(this.x - player.x) / (this.depth);
-      const offY = -(this.y - player.y) / (this.depth);
+      const offLX = -((this.x - this.width/2) - player.x) / (this.depth);
+      const offRX = -((this.x + this.width/2) - player.x) / (this.depth);
+      const offTY = -((this.y - this.height/2) - player.y) / (this.depth);
+      const offBY = -((this.y + this.height/2) - player.y) / (this.depth);
 
       const startX = this.x - this.width/2;
       const startY = this.y - this.height/2;
 
-      const difference = 10;
+      const upperWidth = (startX - player.x + this.width - offRX) - (startX - player.x - offLX)
+      const upperHeight = (startY - player.y + this.height - offBY) - (startY - player.y - offTY)
 
       context.beginPath();
-      context.rect(startX - player.x + difference, startY - player.y + difference, this.width - difference*2, this.height - difference*2);
+      context.rect(startX - player.x, startY - player.y, this.width, this.height);
 
-      context.moveTo(startX - player.x + difference, startY - player.y + difference);
-      context.lineTo(startX - player.x - offX, startY - player.y - offY);
+      context.moveTo(startX - player.x, startY - player.y);
+      context.lineTo(startX - player.x - offLX, startY - player.y - offTY);
 
-      context.moveTo(startX - player.x + this.width - difference, startY - player.y + difference);
-      context.lineTo(startX - player.x + this.width - offX, startY - player.y - offY);
+      context.moveTo(startX - player.x + this.width, startY - player.y);
+      context.lineTo(startX - player.x + this.width - offRX, startY - player.y - offTY);
 
-      context.moveTo(startX - player.x + difference, startY - player.y + this.height - difference);
-      context.lineTo(startX - player.x - offX, startY - player.y + this.height - offY);
+      context.moveTo(startX - player.x, startY - player.y + this.height);
+      context.lineTo(startX - player.x - offLX, startY - player.y + this.height - offBY);
 
-      context.moveTo(startX - player.x + this.width - difference, startY - player.y + this.height - difference);
-      context.lineTo(startX - player.x + this.width - offX, startY - player.y + this.height - offY);
+      context.moveTo(startX - player.x + this.width, startY - player.y + this.height);
+      context.lineTo(startX - player.x + this.width - offRX, startY - player.y + this.height - offBY);
 
-      context.rect(startX - player.x - offX, startY - player.y - offY, this.width, this.height);
+      context.rect(startX - player.x - offLX, startY - player.y - offTY, upperWidth, upperHeight);
       context.stroke();
       context.closePath();
-
-      context.fillStyle = "#603";
-      context.clearRect(startX - player.x - offX + 1, startY - player.y - offY + 1, this.width - 2, this.height - 2);
+      context.clearRect(startX - player.x - offLX + 1, startY - player.y - offTY + 1, upperWidth - 2, upperHeight - 2);
      }
 
     this.shouldRender = (x, y, offset) => {
@@ -429,10 +430,9 @@ class EffectsLayer {
     this.renderGrid = (context, player) => {
       context.strokeStyle = "#ffffff11";
       if(glow){
-        context.shadowBlur = 50;
-        context.shadowColor = "#ff4477cc";
+        context.shadowBlur = 0;
+        context.shadowColor = "#00000000";
       }
-      
       context.lineWidth = 2;
 
       this.startX = lobby_canvas.width/2 - (player.x % 500);
