@@ -25,7 +25,7 @@ class RoomCoordinator {
 }
 
 const roomCoordinator = new RoomCoordinator();
-roomCoordinator.setRoom('intro');
+roomCoordinator.setRoom('lobby');
 
 document.getElementById('skip_intro').addEventListener("click", function(){
   roomCoordinator.setRoom('lobby');

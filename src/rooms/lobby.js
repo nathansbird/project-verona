@@ -2,6 +2,7 @@ const lobby_canvas = document.getElementById('lobby_canvas');
 const lobby_context = lobby_canvas.getContext("2d");
 const shootingSound = new Audio('/static/assets/shooting.wav');
 const newPlayerSound = new Audio('/static/assets/new_player.wav');
+const reloadSound = new Audio('/static/assets/money_in.wav');
 
 const atmosphere_sound = new Howl({
   src: ['/static/assets/atmosphere.wav'],
@@ -10,7 +11,7 @@ const atmosphere_sound = new Howl({
 });
 
 const glow = false;
-const lines = false;
+const lines = true;
 
 const resizeCanvas = () => {
   lobby_canvas.width = window.innerWidth;
@@ -30,15 +31,19 @@ const socket = io({
 });
 
 socket.on('players', (players) => {
+  players = JSON.parse(players);
+
   delete players[socket.id]
 
-  for(player in otherPlayers){
+  for(let player of Object.keys(otherPlayers)){
     if(players[player] == null){
       delete otherPlayers[player];
     }
   }
 
-  for(player in players){
+  console.log(otherPlayers);
+
+  for(let player of Object.keys(otherPlayers)){
     if(otherPlayers[player] != null){
       otherPlayers[player].newValues(players[player].x, players[player].y, players[player].vx, players[player].vy, players[player].rotation);
     }else{
@@ -51,13 +56,13 @@ socket.on('players', (players) => {
 socket.on('keys', (players) => {
   delete players[socket.id]
 
-  for(player in otherPlayers){
+  for(let player in otherPlayers){
     if(players[player] == null){
       delete otherPlayers[player];
     }
   }
 
-  for(player in players){
+  for(let player in players){
     if(otherPlayers[player] != null){
       otherPlayers[player].keys(players[player][0], players[player][1], players[player][2], players[player][3], players[player][4]);
     }else{
@@ -67,6 +72,7 @@ socket.on('keys', (players) => {
 });
 
 const otherPlayers = {};
+let projectiles = [];
 
 class OtherPlayer{
   constructor(){
@@ -200,7 +206,7 @@ class OtherPlayer{
   }
 }
 
-class Player{
+class Player {
   constructor(){
     this.speed = 0;
     this.acceleration = 1;
@@ -291,13 +297,17 @@ class Player{
       }else if(key == 38 || key == 87){
         this.activeAcc = active;
       }
+
+      if(key == 82 && active) {
+        this.reload();
+      }
     }
 
     this.isShooting = false;
     this.ammo = 25;
     this.shooting = (active) => {
       this.isShooting = active;
-      if(active){
+      if(active && this.ammo > 0){
         shootingSound.play();
       }else{
         shootingSound.pause();
@@ -305,11 +315,32 @@ class Player{
       }
     }
 
+    this.reload = () => {
+      this.ammo = 25;
+      reloadSound.currentTime = 0;
+      reloadSound.play();
+
+      if(this.isShooting){
+        shootingSound.currentTime = 0;
+        shootingSound.play();
+      }
+    }
+
     this.kick = () => {
       if(this.isShooting && this.ammo > 0){
         this.jerk = 10;
         this.ammo--;
+        this.createProjectile();
+      } else if(this.ammo == 0) {
+        shootingSound.pause();
+        shootingSound.currentTime = 0;
       }
+    }
+
+    this.sent = 0;
+    this.createProjectile = () => {
+      this.sent++;
+      projectiles.push(new Projectile(this.x, this.y, this.radians, this.vx, this.vy))
     }
 
     setInterval(this.kick, 90);
@@ -327,10 +358,14 @@ class Player{
       context.rotate(this.rotationV*4 * Math.PI / 180);
       context.scale(1.2 - (this.speed/this.maxMaxSpeed)/2, 1.2 - (this.speed/this.maxMaxSpeed)/2);
       context.moveTo(0, 0);
-      context.lineTo(-15 + this.speed/15, 35);
+      context.lineTo(-15 + this.speed/15 + Math.abs(this.rotationV), 35);
       context.lineTo(0, 25);
-      context.lineTo(15 - this.speed/15, 35);
+      context.lineTo(15 - this.speed/15 - Math.abs(this.rotationV), 35);
       context.lineTo(0, 0);
+
+      context.moveTo(0, 15);
+      context.lineTo(0, 26);
+
       context.stroke();
       context.closePath();
       context.restore();
@@ -355,8 +390,11 @@ class Structure {
       const startX = this.x - this.width/2;
       const startY = this.y - this.height/2;
 
-      const upperWidth = (startX - player.x + this.width - offRX) - (startX - player.x - offLX)
-      const upperHeight = (startY - player.y + this.height - offBY) - (startY - player.y - offTY)
+      const upperWidth = (startX - player.x + this.width - offRX) - (startX - player.x - offLX);
+      const upperHeight = (startY - player.y + this.height - offBY) - (startY - player.y - offTY);
+
+      context.shadowBlur = 30;
+      context.shadowColor = "#fff";
 
       context.beginPath();
       context.rect(startX - player.x, startY - player.y, this.width, this.height);
@@ -377,6 +415,9 @@ class Structure {
       context.stroke();
       context.closePath();
       context.clearRect(startX - player.x - offLX + 1, startY - player.y - offTY + 1, upperWidth - 2, upperHeight - 2);
+
+      context.shadowBlur = 0;
+      context.shadowColor = "";
      }
 
     this.shouldRender = (x, y, offset) => {
@@ -397,6 +438,45 @@ const structures = [
   new Structure(62.5, -250, 125, 150, 4),
   new Structure(-325, -250, 400, 150, 4)
 ];
+
+class Projectile {
+  constructor(x, y, radians, vx, vy) {
+    this.x = x;
+    this.y = y;
+    this.vy = (-Math.sin(radians) * 20) + vy;
+    this.vx = (Math.cos(radians) * 20) + vx;
+    this.radians = radians;
+    this.health = 100;
+
+    this.update = () => {
+      this.health--;
+      this.x += this.vx;
+      this.y += this.vy;
+    }
+
+    this.render = (context, player) => {
+      context.fillStyle = "#fff";
+      context.strokeStyle = "#fff";
+
+      context.shadowBlur = 30;
+      context.shadowColor = "#fff";
+
+      context.save();
+      context.beginPath();
+      context.translate(lobby_canvas.width/2, lobby_canvas.height/2 - player.speed*4 + player.jerk);
+      context.rotate(-player.rotation * Math.PI / 180);
+      context.scale(1.2 - (player.speed/player.maxMaxSpeed)/2, 1.2 - (player.speed/player.maxMaxSpeed)/2);
+      context.moveTo(this.x - player.x, this.y - player.y);
+      context.lineTo(this.x + (Math.cos(this.radians) * 20) - player.x, this.y + (-Math.sin(this.radians) * 20) - player.y);
+      context.stroke();
+      context.closePath();
+      context.restore();
+
+      context.shadowBlur = 0;
+      context.shadowColor = "";
+    }
+  }
+}
 
 class MapRenderer {
   constructor(height, width) {
@@ -428,6 +508,8 @@ class EffectsLayer {
     this.rotation = 1;
 
     this.renderGrid = (context, player) => {
+      lobby_canvas.style.background = `linear-gradient(${-player.rotation}deg, #250000, #000025)`
+
       context.strokeStyle = "#ffffff11";
       if(glow){
         context.shadowBlur = 0;
@@ -448,6 +530,7 @@ class EffectsLayer {
       context.rotate(-player.rotation * Math.PI / 180);
       context.scale(1.2 - (player.speed/player.maxMaxSpeed)/3, 1.2 - (player.speed/player.maxMaxSpeed)/3);
       context.translate(-lobby_canvas.width/2, -lobby_canvas.height/2);
+
       while(distanceStep < 3){
         let currentDistance = distanceStep * this.gridGap;
 
@@ -495,7 +578,20 @@ class EffectsLayer {
 
     this.renderText = (context, player) => {
       context.font = "20px Numbers";
-      context.fillText("SPEED: "+(parseInt(Math.ceil(player.speed)) >= player.maxMaxSpeed ? 'MAX' : parseInt(Math.ceil(player.speed))), 30, lobby_canvas.height - 30);
+      
+      //Speed
+      context.fillText("SPEED: "+(parseInt(Math.ceil(player.speed)) >= player.maxMaxSpeed ? 'MAX' : parseInt(Math.ceil(player.speed))), lobby_canvas.width - 150, lobby_canvas.height - 30);
+
+      //Ammo
+      context.lineWidth = 4;
+      context.fillText(player.ammo == 0 ? '[R] RELOAD' : `AMMO`, 30, lobby_canvas.height - 70);
+      context.fillRect(30, lobby_canvas.height - 55, player.ammo * 7, 30);
+      context.strokeRect(30, lobby_canvas.height - 55, 175, 30);
+
+      context.fillStyle = "#fff";
+      context.globalCompositeOperation = "difference";
+      context.fillText(player.ammo.toString(), 40, lobby_canvas.height - 33);
+      context.globalCompositeOperation = "source-over";
     }
   }
 }
@@ -513,11 +609,17 @@ window.addEventListener('keyup', function(event) {newPlayer.updateKey(event.keyC
 
 const updateLobbyCanvas = () => {
   lobby_context.clearRect(0, 0, lobby_canvas.width, lobby_canvas.height);
+
   effects.renderGrid(lobby_context, newPlayer);
   newPlayer.render(lobby_context);
-  for(player in otherPlayers){
+  for(let player in otherPlayers){
     otherPlayers[player].render(lobby_context);
   }
+
+  projectiles.forEach(p => {
+    p.render(lobby_context, newPlayer);
+  })
+
   renderer.renderAtPosition(newPlayer, lobby_context);
   effects.renderText(lobby_context, newPlayer);
   if(lines){effects.renderLines(lobby_context, newPlayer);}
@@ -525,7 +627,15 @@ const updateLobbyCanvas = () => {
 
 const newFrame = () => {
   newPlayer.update();
-  for(player in otherPlayers){
+  
+  projectiles.forEach(p => {
+    p.update();
+  })
+
+  //Delete dead ones
+  projectiles = projectiles.filter(p => p.health > 0);
+  
+  for(let player in otherPlayers){
     otherPlayers[player].update();
   }
   updateLobbyCanvas();

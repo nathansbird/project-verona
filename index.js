@@ -22,6 +22,7 @@ app.use('/rooms', express.static(__dirname + '/src/rooms'));
 const sockets = [];
 const player_data = {};
 const player_keys = {};
+
 io.on('connection', (socket) => {
   sockets.push(socket);
   player_data[socket.id] = {x: 0, y: 0, vx: 0, vy: 0, rotation: 0};
@@ -41,13 +42,14 @@ io.on('connection', (socket) => {
   socket.on('disconnect', function(){
     delete player_data[socket.id];
     delete player_keys[socket.id];
-    sockets.splice(sockets.indexOf(socket))
+    sockets.splice(sockets.indexOf(socket), 1)
   });
 })
 
 const broadcast = () => {
   for(s of sockets){
-    s.emit('players', player_data);
+    console.log(sockets.map(s => s.id));
+    s.emit('players', JSON.stringify(player_data));
   }
 }
 
@@ -68,7 +70,7 @@ http.listen(port, function(){
 });
 
 //Player update clock
-setInterval(broadcast, 1000/30);
+setInterval(broadcast, 1000);
 
 //Keys update clock
 setInterval(keys, 1000/60);

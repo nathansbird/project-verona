@@ -13,18 +13,18 @@ body {
 }
 
 canvas {
-  background: linear-gradient(45deg, #250000, #000025)
+  background: #000;
 }
 
 #lobby_container{
-  background: linear-gradient(45deg, #250000, #000025);
+  /*background: linear-gradient(45deg, #250000, #000025)*/
   align-items: center;
   justify-content: center;
   display: none;
 }
 
 #intro_container{
-  background: linear-gradient(45deg, #250000, #000025);
+  /*background: linear-gradient(45deg, #250000, #000025)*/
   align-items: center;
   justify-content: center;
   display: none;
