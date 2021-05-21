@@ -5,7 +5,7 @@ const newPlayerSound = new Audio('/static/assets/new_player.wav');
 const reloadSound = new Audio('/static/assets/money_in.wav');
 
 const atmosphere_sound = new Howl({
-  src: ['/static/assets/atmosphere.wav'],
+  src: ['/static/assets/glide_menu_loop.wav'],
   loop: true,
   volume: 0.4
 });
