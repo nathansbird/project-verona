@@ -1,4 +1,5 @@
 import { Application, Container } from 'pixi.js';
+import { applyBloom } from './Filters.js';
 
 export interface GlideStage {
   app: Application;
@@ -32,6 +33,7 @@ export async function createStage(): Promise<GlideStage> {
 
   worldContainer.addChild(gridLayer, structuresLayer, projectilesLayer, shipsLayer, particlesLayer);
   app.stage.addChild(bgLayer, worldContainer, uiContainer);
+  applyBloom(worldContainer);
 
   return {
     app,

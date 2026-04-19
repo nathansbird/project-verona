@@ -19,11 +19,19 @@ import { ShipView } from './entities/ShipView.js';
 import { StructureView } from './entities/StructureView.js';
 import { ProjectileView } from './entities/ProjectileView.js';
 import { LocalProjectileSim } from './sim/LocalProjectileSim.js';
+import { HUD } from './ui/HUD.js';
+import { Minimap } from './ui/Minimap.js';
+import { SoundBus } from './audio/SoundBus.js';
+import { ThrustEmitter } from './render/Particles.js';
 
 async function boot(): Promise<void> {
   const stage = await createStage();
   const camera = new Camera(stage.app, stage.worldContainer);
   const background = new Background(stage.app, stage.bgLayer, stage.gridLayer);
+  const hud = new HUD(stage.app, stage.uiContainer);
+  const minimap = new Minimap(stage.app, stage.uiContainer);
+  const sound = new SoundBus();
+  const thrust = new ThrustEmitter(stage.particlesLayer, stage.app.renderer);
   const keyboard = new KeyboardInput();
   const prediction = new Prediction();
   const projectileSim = new LocalProjectileSim();
@@ -34,10 +42,11 @@ async function boot(): Promise<void> {
   });
   const room = await net.join();
 
-  room.onMessage(PROJECTILE_SPAWN, (e: ProjectileSpawnEvent) => projectileSim.spawn(e));
-  room.onMessage(PROJECTILE_HIT, (_e: ProjectileHitEvent) => {
-    // hit FX lands in Phase 6 (sparks, sound, damage flash)
+  room.onMessage(PROJECTILE_SPAWN, (e: ProjectileSpawnEvent) => {
+    projectileSim.spawn(e);
+    if (e.ownerSessionId === net.sessionId) sound.play('shoot', 0.4);
   });
+  room.onMessage(PROJECTILE_HIT, (_e: ProjectileHitEvent) => sound.play('hit', 0.5));
   room.onMessage(PROJECTILE_CANCEL, (e: ProjectileCancelEvent) => projectileSim.cancel(e.id));
 
   const ownShipView = new ShipView();
@@ -49,9 +58,18 @@ async function boot(): Promise<void> {
 
   const pendingInputs: InputFrame[] = [];
   let lastInputSendAt = 0;
+  let lastFrame: InputFrame = {
+    seq: 0,
+    accel: false,
+    left: false,
+    right: false,
+    brake: false,
+    shoot: false,
+  };
 
   stage.app.ticker.add(() => {
     const frame = keyboard.sampleFrame();
+    lastFrame = frame;
     prediction.pushInput(frame);
     pendingInputs.push(frame);
 
@@ -84,6 +102,14 @@ async function boot(): Promise<void> {
     const speed = Math.hypot(own.vx, own.vy);
     camera.update(own.x, own.y, own.rotation, speed);
     background.update(stage.app, own.x, own.y, own.rotation);
+
+    const ammo = ownSchema?.ammo ?? 0;
+    const health = ownSchema?.health ?? 0;
+    hud.update(ammo, health, speed);
+    minimap.update(state, own.x, own.y, net.sessionId);
+
+    thrust.setActive(lastFrame.accel, own.x, own.y, own.rotation);
+    thrust.update(stage.app.ticker.deltaMS / 1000);
 
     for (const [id, schema] of state.structures) {
       let view = structureViews.get(id);
