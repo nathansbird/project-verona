@@ -1,13 +1,18 @@
 import { INPUT_SEND_HZ, InputFrame } from '@glide/shared';
 import { createStage } from './render/Stage.js';
+import { Camera } from './render/Camera.js';
+import { Background } from './render/Background.js';
 import { NetClient } from './net/NetClient.js';
 import { KeyboardInput } from './input/Keyboard.js';
 import { Prediction } from './net/Prediction.js';
 import { InterpolationBuffer } from './net/Interpolation.js';
 import { ShipView } from './entities/ShipView.js';
+import { StructureView } from './entities/StructureView.js';
 
 async function boot(): Promise<void> {
   const stage = await createStage();
+  const camera = new Camera(stage.app, stage.worldContainer);
+  const background = new Background(stage.app, stage.bgLayer, stage.gridLayer);
   const keyboard = new KeyboardInput();
   const prediction = new Prediction();
   const inputSendIntervalMs = 1000 / INPUT_SEND_HZ;
@@ -21,6 +26,7 @@ async function boot(): Promise<void> {
   stage.shipsLayer.addChild(ownShipView.container);
 
   const remoteShips = new Map<string, { view: ShipView; interp: InterpolationBuffer }>();
+  const structureViews = new Map<string, StructureView>();
 
   const pendingInputs: InputFrame[] = [];
   let lastInputSendAt = 0;
@@ -54,6 +60,20 @@ async function boot(): Promise<void> {
 
     const own = prediction.state;
     ownShipView.setTransform(own.x, own.y, own.rotation);
+    const speed = Math.hypot(own.vx, own.vy);
+    camera.update(own.x, own.y, own.rotation, speed);
+    background.update(stage.app, own.x, own.y, own.rotation);
+
+    for (const [id, schema] of state.structures) {
+      let view = structureViews.get(id);
+      if (!view) {
+        const pts = schema.footprint.map((p) => ({ x: p.x, y: p.y }));
+        view = new StructureView(pts, schema.depth);
+        stage.structuresLayer.addChild(view.container);
+        structureViews.set(id, view);
+      }
+      view.updateExtrusion(own.x, own.y);
+    }
 
     for (const [sid, ship] of state.ships) {
       if (sid === net.sessionId) continue;
@@ -76,9 +96,6 @@ async function boot(): Promise<void> {
         remoteShips.delete(sid);
       }
     }
-
-    stage.worldContainer.position.set(stage.app.screen.width / 2, stage.app.screen.height / 2);
-    stage.worldContainer.pivot.set(own.x, own.y);
   });
 }
 

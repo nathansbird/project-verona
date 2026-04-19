@@ -8,3 +8,4 @@ export * from './schemas/StructureSchema.js';
 export * from './schemas/ArenaState.js';
 export * from './sim/SimWorld.js';
 export * from './sim/Ship.js';
+export * from './sim/Structure.js';

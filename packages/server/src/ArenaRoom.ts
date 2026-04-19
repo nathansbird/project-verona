@@ -4,6 +4,8 @@ type Client = colyseus.Client;
 import {
   ArenaState,
   ShipSchema,
+  StructureSchema,
+  FootprintPoint,
   INPUT_MESSAGE,
   INPUT_ACK,
   InputBatch,
@@ -14,7 +16,9 @@ import {
   DEFAULT_HEALTH,
   SimWorld,
   Ship,
+  createStructureBody,
 } from '@glide/shared';
+import { DEFAULT_WORLD } from './sim/worldLayout.js';
 
 interface PendingInput {
   sessionId: string;
@@ -33,6 +37,21 @@ export class ArenaRoom extends Room<ArenaState> {
   onCreate(): void {
     this.setState(new ArenaState());
     this.setPatchRate(1000 / BROADCAST_TICK_HZ);
+
+    for (const def of DEFAULT_WORLD) {
+      createStructureBody(this.sim.world, def);
+      const schema = new StructureSchema();
+      schema.id = def.id;
+      schema.depth = def.depth;
+      for (const p of def.footprint) {
+        const fp = new FootprintPoint();
+        fp.x = p.x;
+        fp.y = p.y;
+        schema.footprint.push(fp);
+      }
+      this.state.structures.set(def.id, schema);
+    }
+
     this.onMessage(INPUT_MESSAGE, (client, batch: InputBatch) => {
       for (const frame of batch.frames) {
         this.inputQueue.push({ sessionId: client.sessionId, frame });
