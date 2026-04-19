@@ -1,4 +1,13 @@
-import { INPUT_SEND_HZ, InputFrame } from '@glide/shared';
+import {
+  INPUT_SEND_HZ,
+  PROJECTILE_SPAWN,
+  PROJECTILE_HIT,
+  PROJECTILE_CANCEL,
+  ProjectileSpawnEvent,
+  ProjectileHitEvent,
+  ProjectileCancelEvent,
+  InputFrame,
+} from '@glide/shared';
 import { createStage } from './render/Stage.js';
 import { Camera } from './render/Camera.js';
 import { Background } from './render/Background.js';
@@ -8,6 +17,8 @@ import { Prediction } from './net/Prediction.js';
 import { InterpolationBuffer } from './net/Interpolation.js';
 import { ShipView } from './entities/ShipView.js';
 import { StructureView } from './entities/StructureView.js';
+import { ProjectileView } from './entities/ProjectileView.js';
+import { LocalProjectileSim } from './sim/LocalProjectileSim.js';
 
 async function boot(): Promise<void> {
   const stage = await createStage();
@@ -15,18 +26,26 @@ async function boot(): Promise<void> {
   const background = new Background(stage.app, stage.bgLayer, stage.gridLayer);
   const keyboard = new KeyboardInput();
   const prediction = new Prediction();
+  const projectileSim = new LocalProjectileSim();
   const inputSendIntervalMs = 1000 / INPUT_SEND_HZ;
 
   const net = new NetClient({
     onAck: (lastSeq) => prediction.onAck(lastSeq),
   });
-  await net.join();
+  const room = await net.join();
+
+  room.onMessage(PROJECTILE_SPAWN, (e: ProjectileSpawnEvent) => projectileSim.spawn(e));
+  room.onMessage(PROJECTILE_HIT, (_e: ProjectileHitEvent) => {
+    // hit FX lands in Phase 6 (sparks, sound, damage flash)
+  });
+  room.onMessage(PROJECTILE_CANCEL, (e: ProjectileCancelEvent) => projectileSim.cancel(e.id));
 
   const ownShipView = new ShipView();
   stage.shipsLayer.addChild(ownShipView.container);
 
   const remoteShips = new Map<string, { view: ShipView; interp: InterpolationBuffer }>();
   const structureViews = new Map<string, StructureView>();
+  const projectileViews = new Map<string, ProjectileView>();
 
   const pendingInputs: InputFrame[] = [];
   let lastInputSendAt = 0;
@@ -42,6 +61,8 @@ async function boot(): Promise<void> {
       pendingInputs.length = 0;
       lastInputSendAt = now;
     }
+
+    projectileSim.step();
 
     const state = net.state;
     if (!state) return;
@@ -88,12 +109,30 @@ async function boot(): Promise<void> {
       const sampled = entry.interp.sample(performance.now());
       if (sampled) entry.view.setTransform(sampled.x, sampled.y, sampled.rotation);
     }
-
     for (const sid of remoteShips.keys()) {
       if (!state.ships.has(sid)) {
         const entry = remoteShips.get(sid)!;
         stage.shipsLayer.removeChild(entry.view.container);
         remoteShips.delete(sid);
+      }
+    }
+
+    const seenIds = new Set<string>();
+    for (const [id, p] of projectileSim.entries()) {
+      seenIds.add(id);
+      let view = projectileViews.get(id);
+      if (!view) {
+        view = new ProjectileView();
+        stage.projectilesLayer.addChild(view.gfx);
+        projectileViews.set(id, view);
+      }
+      view.setTransform(p.x, p.y, p.vx, p.vy);
+    }
+    for (const id of projectileViews.keys()) {
+      if (!seenIds.has(id)) {
+        const v = projectileViews.get(id)!;
+        stage.projectilesLayer.removeChild(v.gfx);
+        projectileViews.delete(id);
       }
     }
   });
