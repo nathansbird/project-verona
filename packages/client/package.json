@@ -1,0 +1,25 @@
+{
+  "name": "@glide/client",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @glide/shared build && vite",
+    "build": "pnpm --filter @glide/shared build && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@glide/shared": "workspace:*",
+    "colyseus.js": "^0.15.0",
+    "howler": "^2.2.0",
+    "pixi.js": "^8.0.0",
+    "pixi-filters": "^6.0.0",
+    "@pixi/particle-emitter": "^5.0.0",
+    "planck": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/howler": "^2.2.0",
+    "vite": "^5.2.0"
+  }
+}
