@@ -11,6 +11,7 @@ export class ShipSchema extends Schema {
   @type('number') rotationV = 0;
   @type('number') health = 100;
   @type('number') ammo = 25;
+  @type('boolean') alive = true;
   @type('boolean') shieldActive = false;
   @type('boolean') boostActive = false;
 }

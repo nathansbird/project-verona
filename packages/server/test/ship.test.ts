@@ -3,7 +3,15 @@ import { SimWorld, Ship } from '@glide/shared';
 import { InputFrame, SHIP_MAX_SPEED } from '@glide/shared';
 
 function emptyInput(seq: number): InputFrame {
-  return { seq, accel: false, left: false, right: false, brake: false, shoot: false };
+  return {
+    seq,
+    accel: false,
+    left: false,
+    right: false,
+    brake: false,
+    shoot: false,
+    reload: false,
+  };
 }
 
 describe('Ship', () => {

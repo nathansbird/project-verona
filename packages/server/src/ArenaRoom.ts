@@ -10,10 +10,14 @@ import {
   INPUT_ACK,
   PROJECTILE_SPAWN,
   PROJECTILE_HIT,
+  SHIP_DEATH,
+  SHIP_RESPAWN,
   InputBatch,
   InputFrame,
   ProjectileSpawnEvent,
   ProjectileHitEvent,
+  ShipDeathEvent,
+  ShipRespawnEvent,
   SIM_TICK_HZ,
   SIM_TICK_SECONDS,
   BROADCAST_TICK_HZ,
@@ -23,6 +27,8 @@ import {
   PROJECTILE_SPAWN_COOLDOWN_SECONDS,
   PROJECTILE_SPEED,
   PROJECTILE_LIFETIME_SECONDS,
+  PROJECTILE_NOSE_OFFSET,
+  RESPAWN_DELAY_SECONDS,
   SimWorld,
   Ship,
   Projectile,
@@ -30,28 +36,32 @@ import {
 } from '@glide/shared';
 import { DEFAULT_WORLD } from './sim/worldLayout.js';
 
-interface PendingInput {
-  sessionId: string;
-  frame: InputFrame;
-}
+const RESPAWN_INSET = 3000;
 
 interface ShipRuntime {
-  ship: Ship;
+  ship: Ship | null;
+  groupIndex: number;
   shotCooldown: number;
   holdingFire: boolean;
+  reloadHeld: boolean;
+  inputBuffer: Map<number, InputFrame>;
+  lastProcessedSeq: number;
+  lastAppliedInput: InputFrame;
+  respawnTick: number;
 }
 
 export class ArenaRoom extends Room<ArenaState> {
   private sim = new SimWorld();
   private ships = new Map<string, ShipRuntime>();
   private projectiles = new Map<string, Projectile>();
-  private inputQueue: PendingInput[] = [];
   private tickCount = 0;
   private accumulatorMs = 0;
   private nextProjectileId = 1;
+  private nextShipGroup = -1;
   private readonly simIntervalMs = 1000 / SIM_TICK_HZ;
   private readonly broadcastEveryNTicks = Math.round(SIM_TICK_HZ / BROADCAST_TICK_HZ);
   private readonly projectileLifetimeTicks = Math.round(PROJECTILE_LIFETIME_SECONDS * SIM_TICK_HZ);
+  private readonly respawnDelayTicks = Math.round(RESPAWN_DELAY_SECONDS * SIM_TICK_HZ);
 
   onCreate(): void {
     this.setState(new ArenaState());
@@ -74,8 +84,11 @@ export class ArenaRoom extends Room<ArenaState> {
     this.sim.world.on('begin-contact', (contact) => this.handleContact(contact));
 
     this.onMessage(INPUT_MESSAGE, (client, batch: InputBatch) => {
+      const entry = this.ships.get(client.sessionId);
+      if (!entry) return;
       for (const frame of batch.frames) {
-        this.inputQueue.push({ sessionId: client.sessionId, frame });
+        if (frame.seq <= entry.lastProcessedSeq) continue;
+        entry.inputBuffer.set(frame.seq, frame);
       }
     });
 
@@ -83,24 +96,49 @@ export class ArenaRoom extends Room<ArenaState> {
   }
 
   onJoin(client: Client): void {
-    const ship = new Ship(this.sim.world, 0, 0);
-    this.ships.set(client.sessionId, { ship, shotCooldown: 0, holdingFire: false });
+    const spawn = this.pickSpawnPoint();
+    const groupIndex = this.nextShipGroup--;
+    const ship = new Ship(this.sim.world, spawn.x, spawn.y, groupIndex);
+    ship.body.setAngle(spawn.rotation);
+    const idleInput: InputFrame = {
+      seq: 0,
+      accel: false,
+      left: false,
+      right: false,
+      brake: false,
+      shoot: false,
+      reload: false,
+    };
+    this.ships.set(client.sessionId, {
+      ship,
+      groupIndex,
+      shotCooldown: 0,
+      holdingFire: false,
+      reloadHeld: false,
+      inputBuffer: new Map(),
+      lastProcessedSeq: 0,
+      lastAppliedInput: idleInput,
+      respawnTick: -1,
+    });
 
     const schema = new ShipSchema();
     schema.sessionId = client.sessionId;
     schema.health = DEFAULT_HEALTH;
     schema.ammo = DEFAULT_AMMO;
+    schema.alive = true;
+    schema.x = spawn.x;
+    schema.y = spawn.y;
+    schema.rotation = spawn.rotation;
     this.state.ships.set(client.sessionId, schema);
   }
 
   onLeave(client: Client): void {
     const entry = this.ships.get(client.sessionId);
     if (entry) {
-      this.sim.world.destroyBody(entry.ship.body);
+      if (entry.ship) this.sim.world.destroyBody(entry.ship.body);
       this.ships.delete(client.sessionId);
     }
     this.state.ships.delete(client.sessionId);
-    this.inputQueue = this.inputQueue.filter((i) => i.sessionId !== client.sessionId);
   }
 
   private onSimulationFrame(dt: number): void {
@@ -115,20 +153,31 @@ export class ArenaRoom extends Room<ArenaState> {
     this.tickCount += 1;
     this.state.serverTick = this.tickCount;
 
-    const perShip = new Map<string, InputFrame>();
-    for (const pending of this.inputQueue) {
-      const existing = perShip.get(pending.sessionId);
-      if (!existing || pending.frame.seq > existing.seq) {
-        perShip.set(pending.sessionId, pending.frame);
-      }
-    }
-    this.inputQueue = [];
-
     for (const [sessionId, entry] of this.ships) {
-      const frame = perShip.get(sessionId);
+      const nextSeq = entry.lastProcessedSeq + 1;
+      let frame = entry.inputBuffer.get(nextSeq);
       if (frame) {
+        entry.inputBuffer.delete(nextSeq);
+        entry.lastProcessedSeq = nextSeq;
+        entry.lastAppliedInput = frame;
+      } else {
+        frame = entry.lastAppliedInput;
+      }
+
+      if (entry.ship) {
         entry.ship.applyInput(frame);
         entry.holdingFire = frame.shoot;
+
+        if (frame.reload && !entry.reloadHeld) {
+          const schema = this.state.ships.get(sessionId);
+          if (schema) schema.ammo = DEFAULT_AMMO;
+        }
+        entry.reloadHeld = frame.reload;
+      } else {
+        entry.holdingFire = false;
+        if (entry.respawnTick >= 0 && this.tickCount >= entry.respawnTick) {
+          this.respawnShip(sessionId, entry);
+        }
       }
     }
 
@@ -136,6 +185,7 @@ export class ArenaRoom extends Room<ArenaState> {
 
     for (const [sessionId, entry] of this.ships) {
       if (entry.shotCooldown > 0) entry.shotCooldown -= SIM_TICK_SECONDS;
+      if (!entry.ship) continue;
       const schema = this.state.ships.get(sessionId);
       if (!schema) continue;
       if (entry.holdingFire && entry.shotCooldown <= 0 && schema.ammo > 0) {
@@ -153,6 +203,7 @@ export class ArenaRoom extends Room<ArenaState> {
     }
 
     for (const [sessionId, entry] of this.ships) {
+      if (!entry.ship) continue;
       const schema = this.state.ships.get(sessionId);
       if (!schema) continue;
       const s = entry.ship.getState();
@@ -167,12 +218,13 @@ export class ArenaRoom extends Room<ArenaState> {
     if (this.tickCount % this.broadcastEveryNTicks === 0) {
       for (const [sessionId, entry] of this.ships) {
         const client = this.clients.find((c) => c.sessionId === sessionId);
-        if (client) client.send(INPUT_ACK, { lastSeq: entry.ship.lastInputSeq });
+        if (client) client.send(INPUT_ACK, { lastSeq: entry.lastProcessedSeq });
       }
     }
   }
 
   private spawnProjectile(ownerId: string, entry: ShipRuntime): void {
+    if (!entry.ship) return;
     const state = entry.ship.getState();
     const fx = Math.cos(state.rotation);
     const fy = Math.sin(state.rotation);
@@ -180,14 +232,14 @@ export class ArenaRoom extends Room<ArenaState> {
     const init = {
       id,
       ownerSessionId: ownerId,
-      x: state.x + fx * 30,
-      y: state.y + fy * 30,
+      x: state.x + fx * PROJECTILE_NOSE_OFFSET,
+      y: state.y + fy * PROJECTILE_NOSE_OFFSET,
       vx: state.vx + fx * PROJECTILE_SPEED,
       vy: state.vy + fy * PROJECTILE_SPEED,
       spawnTick: this.tickCount,
       despawnTick: this.tickCount + this.projectileLifetimeTicks,
     };
-    const projectile = new Projectile(this.sim.world, init);
+    const projectile = new Projectile(this.sim.world, init, entry.groupIndex);
     this.projectiles.set(id, projectile);
 
     const event: ProjectileSpawnEvent = init;
@@ -211,10 +263,10 @@ export class ArenaRoom extends Room<ArenaState> {
     const projectile = this.projectiles.get(projectileId);
     if (!projectile) return;
     const victimEntry = [...this.ships.entries()].find(
-      ([, e]) => e.ship.body.getUserData() === shipUserData,
+      ([, e]) => e.ship?.body.getUserData() === shipUserData,
     );
     if (!victimEntry) return;
-    const [victimSessionId] = victimEntry;
+    const [victimSessionId, victimRuntime] = victimEntry;
     if (victimSessionId === ownerSessionId) return;
 
     const victimSchema = this.state.ships.get(victimSessionId);
@@ -230,6 +282,79 @@ export class ArenaRoom extends Room<ArenaState> {
     };
     this.broadcast(PROJECTILE_HIT, event);
     this.removeProjectile(projectileId);
+
+    if (victimSchema && victimSchema.alive && victimSchema.health <= 0) {
+      this.killShip(victimSessionId, victimRuntime, ownerSessionId);
+    }
+  }
+
+  private killShip(sessionId: string, entry: ShipRuntime, killerSessionId: string | null): void {
+    if (!entry.ship) return;
+    const final = entry.ship.getState();
+    this.sim.world.destroyBody(entry.ship.body);
+    entry.ship = null;
+    entry.holdingFire = false;
+    entry.reloadHeld = false;
+    entry.inputBuffer.clear();
+    entry.respawnTick = this.tickCount + this.respawnDelayTicks;
+
+    const schema = this.state.ships.get(sessionId);
+    if (schema) {
+      schema.alive = false;
+      schema.health = 0;
+      schema.vx = 0;
+      schema.vy = 0;
+      schema.rotationV = 0;
+    }
+
+    const event: ShipDeathEvent = {
+      sessionId,
+      killerSessionId,
+      x: final.x,
+      y: final.y,
+      vx: final.vx,
+      vy: final.vy,
+      rotation: final.rotation,
+      rotationV: final.rotationV,
+    };
+    this.broadcast(SHIP_DEATH, event);
+  }
+
+  private respawnShip(sessionId: string, entry: ShipRuntime): void {
+    const spawn = this.pickSpawnPoint();
+    const ship = new Ship(this.sim.world, spawn.x, spawn.y, entry.groupIndex);
+    ship.body.setAngle(spawn.rotation);
+    entry.ship = ship;
+    entry.respawnTick = -1;
+    entry.shotCooldown = 0;
+
+    const schema = this.state.ships.get(sessionId);
+    if (schema) {
+      schema.alive = true;
+      schema.health = DEFAULT_HEALTH;
+      schema.ammo = DEFAULT_AMMO;
+      schema.x = spawn.x;
+      schema.y = spawn.y;
+      schema.vx = 0;
+      schema.vy = 0;
+      schema.rotation = spawn.rotation;
+      schema.rotationV = 0;
+    }
+
+    const event: ShipRespawnEvent = {
+      sessionId,
+      x: spawn.x,
+      y: spawn.y,
+      rotation: spawn.rotation,
+    };
+    this.broadcast(SHIP_RESPAWN, event);
+  }
+
+  private pickSpawnPoint(): { x: number; y: number; rotation: number } {
+    const x = (Math.random() * 2 - 1) * RESPAWN_INSET;
+    const y = (Math.random() * 2 - 1) * RESPAWN_INSET;
+    const rotation = Math.random() * Math.PI * 2;
+    return { x, y, rotation };
   }
 
   private removeProjectile(id: string): void {

@@ -1,49 +1,52 @@
-import { Emitter } from '@pixi/particle-emitter';
-import { Container, Graphics, Renderer } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 
-function makeDotTexture(renderer: Renderer) {
-  const g = new Graphics().circle(0, 0, 2).fill(0xffffff);
-  return renderer.generateTexture(g);
+interface Particle {
+  localX: number;
+  localY: number;
+  localVx: number;
+  localVy: number;
+  age: number;
+  life: number;
+  size: number;
 }
 
-export class ThrustEmitter {
-  private emitter: Emitter;
+export class ThrustParticles {
+  private gfx = new Graphics();
+  private particles: Particle[] = [];
 
-  constructor(parent: Container, renderer: Renderer) {
-    const texture = makeDotTexture(renderer);
-    this.emitter = new Emitter(parent as any, {
-      lifetime: { min: 0.15, max: 0.35 },
-      frequency: 0.02,
-      emitterLifetime: -1,
-      maxParticles: 200,
-      pos: { x: 0, y: 0 },
-      behaviors: [
-        {
-          type: 'alpha',
-          config: { alpha: { list: [{ time: 0, value: 1 }, { time: 1, value: 0 }] } },
-        },
-        {
-          type: 'scale',
-          config: { scale: { list: [{ time: 0, value: 1 }, { time: 1, value: 0.2 }] } },
-        },
-        {
-          type: 'moveSpeed',
-          config: { speed: { list: [{ time: 0, value: 150 }, { time: 1, value: 0 }] } },
-        },
-        { type: 'rotationStatic', config: { min: 0, max: 360 } },
-        { type: 'textureSingle', config: { texture } },
-      ],
+  constructor(shipContainer: Container) {
+    shipContainer.addChild(this.gfx);
+  }
+
+  emit(): void {
+    const jitterX = (Math.random() - 0.5) * 20;
+    const jitterY = (Math.random() - 0.5) * 20;
+
+    this.particles.push({
+      localX: -25,
+      localY: 0,
+      localVx: -(400 + Math.random() * 200) + jitterX,
+      localVy: (Math.random() - 0.5) * 40 + jitterY,
+      age: 0,
+      life: 0.2 + Math.random() * 0.15,
+      size: 1.5 + Math.random() * 2,
     });
-    this.emitter.emit = false;
   }
 
-  setActive(active: boolean, x: number, y: number, angle: number): void {
-    this.emitter.emit = active;
-    this.emitter.updateOwnerPos(x, y);
-    this.emitter.rotate((angle * 180) / Math.PI + 180);
-  }
+  update(dtSec: number): void {
+    for (const p of this.particles) {
+      p.localX += p.localVx * dtSec;
+      p.localY += p.localVy * dtSec;
+      p.age += dtSec;
+    }
+    this.particles = this.particles.filter((p) => p.age < p.life);
 
-  update(deltaSeconds: number): void {
-    this.emitter.update(deltaSeconds);
+    this.gfx.clear();
+    for (const p of this.particles) {
+      const t = p.age / p.life;
+      const alpha = 1 - t;
+      const radius = p.size * (1 - t * 0.6);
+      this.gfx.circle(p.localX, p.localY, radius).fill({ color: 0xffffff, alpha });
+    }
   }
 }

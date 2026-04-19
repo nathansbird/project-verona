@@ -3,13 +3,13 @@ import { Graphics } from 'pixi.js';
 export class ProjectileView {
   readonly gfx: Graphics;
 
-  constructor() {
+  constructor(color: number = 0xffffff) {
     this.gfx = new Graphics();
-    this.draw();
+    this.draw(color);
   }
 
-  private draw(): void {
-    this.gfx.moveTo(-6, 0).lineTo(6, 0).stroke({ width: 2, color: 0xffffff });
+  private draw(color: number): void {
+    this.gfx.moveTo(-10, 0).lineTo(10, 0).stroke({ width: 2, color });
   }
 
   setTransform(x: number, y: number, vx: number, vy: number): void {

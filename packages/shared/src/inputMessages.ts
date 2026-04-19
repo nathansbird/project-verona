@@ -5,6 +5,7 @@ export interface InputFrame {
   right: boolean;
   brake: boolean;
   shoot: boolean;
+  reload: boolean;
 }
 
 export interface InputBatch {

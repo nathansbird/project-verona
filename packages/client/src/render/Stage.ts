@@ -1,14 +1,15 @@
 import { Application, Container } from 'pixi.js';
-import { applyBloom } from './Filters.js';
+import { applyBloom, applyCRT } from './Filters.js';
 
 export interface GlideStage {
   app: Application;
   bgLayer: Container;
   worldContainer: Container;
+  gridLayer: Container;
+  structuresLayer: Container;
+  glowLayer: Container;
   shipsLayer: Container;
   projectilesLayer: Container;
-  structuresLayer: Container;
-  gridLayer: Container;
   particlesLayer: Container;
   uiContainer: Container;
 }
@@ -19,6 +20,8 @@ export async function createStage(): Promise<GlideStage> {
     resizeTo: window,
     antialias: true,
     background: '#000000',
+    resolution: window.devicePixelRatio || 1,
+    autoDensity: true,
   });
   document.getElementById('app')!.appendChild(app.canvas);
 
@@ -26,14 +29,18 @@ export async function createStage(): Promise<GlideStage> {
   const worldContainer = new Container();
   const gridLayer = new Container();
   const structuresLayer = new Container();
+  const glowLayer = new Container();
   const projectilesLayer = new Container();
   const shipsLayer = new Container();
   const particlesLayer = new Container();
   const uiContainer = new Container();
 
-  worldContainer.addChild(gridLayer, structuresLayer, projectilesLayer, shipsLayer, particlesLayer);
+  glowLayer.addChild(projectilesLayer, shipsLayer, particlesLayer);
+  worldContainer.addChild(gridLayer, structuresLayer, glowLayer);
   app.stage.addChild(bgLayer, worldContainer, uiContainer);
-  applyBloom(worldContainer);
+
+  applyBloom(glowLayer);
+  applyCRT(app.stage);
 
   return {
     app,
@@ -41,8 +48,9 @@ export async function createStage(): Promise<GlideStage> {
     worldContainer,
     gridLayer,
     structuresLayer,
-    projectilesLayer,
+    glowLayer,
     shipsLayer,
+    projectilesLayer,
     particlesLayer,
     uiContainer,
   };

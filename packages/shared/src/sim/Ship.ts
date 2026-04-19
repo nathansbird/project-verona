@@ -1,6 +1,6 @@
-import { Body, Circle, Vec2, World } from 'planck';
+import { Body, Polygon, Vec2, World } from 'planck';
 import {
-  SHIP_RADIUS,
+  SHIP_HULL,
   SHIP_THRUST,
   SHIP_TURN_ACCEL,
   SHIP_TURN_RATE,
@@ -14,9 +14,11 @@ import { clamp } from '../math.js';
 
 export class Ship {
   readonly body: Body;
+  readonly groupIndex: number;
   lastInputSeq = 0;
 
-  constructor(world: World, spawnX: number, spawnY: number) {
+  constructor(world: World, spawnX: number, spawnY: number, groupIndex = 0) {
+    this.groupIndex = groupIndex;
     this.body = world.createBody({
       type: 'dynamic',
       position: Vec2(spawnX, spawnY),
@@ -25,12 +27,15 @@ export class Ship {
       fixedRotation: false,
     });
     this.body.createFixture({
-      shape: new Circle(SHIP_RADIUS),
-      density: 0.001,
+      shape: new Polygon(SHIP_HULL.map(([x, y]) => Vec2(x, y))),
+      // Density calibrated so triangle mass matches the prior 20-radius
+      // circle (area 1257 vs 525), preserving thrust-vs-mass feel.
+      density: 0.0024,
       friction: 0.1,
       restitution: 0.3,
       filterCategoryBits: Category.SHIP,
       filterMaskBits: Mask.SHIP,
+      filterGroupIndex: groupIndex,
     });
     this.body.setUserData({ kind: 'ship' });
   }

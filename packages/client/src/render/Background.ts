@@ -24,12 +24,10 @@ export class Background {
     gridLayer.addChild(this.grid);
   }
 
-  update(app: Application, cameraX: number, cameraY: number, rotation: number): void {
+  update(app: Application, _cameraX: number, _cameraY: number, rotation: number): void {
     this.gradient.width = app.screen.width * 2;
     this.gradient.height = app.screen.height * 2;
     this.gradient.position.set(app.screen.width / 2, app.screen.height / 2);
     this.gradient.rotation = -rotation;
-
-    this.grid.tilePosition.set(-cameraX, -cameraY);
   }
 }

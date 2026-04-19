@@ -19,6 +19,7 @@ export class KeyboardInput {
       right: this.down.has('KeyD') || this.down.has('ArrowRight'),
       brake: this.down.has('KeyS') || this.down.has('ArrowDown'),
       shoot: this.down.has('Space'),
+      reload: this.down.has('KeyR'),
     };
   }
 }
