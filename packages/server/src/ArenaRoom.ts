@@ -10,12 +10,14 @@ import {
   INPUT_ACK,
   PROJECTILE_SPAWN,
   PROJECTILE_HIT,
+  PROJECTILE_CANCEL,
   SHIP_DEATH,
   SHIP_RESPAWN,
   InputBatch,
   InputFrame,
   ProjectileSpawnEvent,
   ProjectileHitEvent,
+  ProjectileCancelEvent,
   ShipDeathEvent,
   ShipRespawnEvent,
   SIM_TICK_HZ,
@@ -255,6 +257,8 @@ export class ArenaRoom extends Room<ArenaState> {
     if (other?.kind === 'ship') {
       this.onProjectileHitsShip(p.id, p.ownerSessionId, other);
     } else if (other?.kind === 'structure') {
+      const cancelEvent: ProjectileCancelEvent = { id: p.id };
+      this.broadcast(PROJECTILE_CANCEL, cancelEvent);
       this.removeProjectile(p.id);
     }
   }
