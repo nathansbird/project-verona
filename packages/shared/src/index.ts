@@ -6,3 +6,5 @@ export * from './netMessages.js';
 export * from './schemas/ShipSchema.js';
 export * from './schemas/StructureSchema.js';
 export * from './schemas/ArenaState.js';
+export * from './sim/SimWorld.js';
+export * from './sim/Ship.js';
