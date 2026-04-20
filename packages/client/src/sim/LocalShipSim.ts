@@ -1,5 +1,5 @@
 import { World, Vec2 } from 'planck';
-import { SIM_TICK_SECONDS, InputFrame, Ship } from '@glide/shared';
+import { SIM_TICK_SECONDS, InputFrame, Ship, StructureDef, createStructureBody } from '@glide/shared';
 
 export class LocalShipSim {
   private world = new World({ gravity: Vec2(0, 0) });
@@ -7,6 +7,10 @@ export class LocalShipSim {
 
   constructor() {
     this.ship = new Ship(this.world, 0, 0);
+  }
+
+  addStructure(def: StructureDef): void {
+    createStructureBody(this.world, def);
   }
 
   snapTo(x: number, y: number, vx: number, vy: number, rotation: number, rotationV: number): void {

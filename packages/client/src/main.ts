@@ -354,6 +354,7 @@ async function boot(): Promise<void> {
         stage.structuresLayer.addChild(view.container);
         structureViews.set(id, view);
         projectileSim.addStructure(pts);
+        prediction.sim.addStructure({ id, footprint: pts, depth: schema.depth });
       }
       view.updateExtrusion(camX, camY);
     }
