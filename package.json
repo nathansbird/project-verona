@@ -1,17 +1,27 @@
 {
-  "name": "project_verona",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "glide",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "start": "nodemon index.js"
+    "dev": "pnpm -r --parallel --filter=./packages/server --filter=./packages/client dev",
+    "dev:server": "pnpm --filter @glide/server dev",
+    "dev:client": "pnpm --filter @glide/client dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @glide/server start",
+    "heroku-postbuild": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write ."
   },
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "express": "^4.17.1",
-    "nodemon": "^1.19.4",
-    "socket.io": "^2.3.0",
-    "uuid": "^7.0.2"
-  }
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "prettier": "^3.2.0",
+    "vitest": "^1.4.0",
+    "@types/node": "^20.11.0"
+  },
+  "packageManager": "pnpm@9.0.0"
 }
