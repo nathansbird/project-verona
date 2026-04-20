@@ -8,9 +8,14 @@
     "dev:server": "pnpm --filter @glide/server dev",
     "dev:client": "pnpm --filter @glide/client dev",
     "build": "pnpm -r build",
+    "start": "pnpm --filter @glide/server start",
+    "heroku-postbuild": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "format": "prettier --write ."
+  },
+  "engines": {
+    "node": ">=20"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

@@ -38,8 +38,8 @@ export class StructureView {
     this.extrusion.clear();
     if (this.footprint.length < 3) return;
     const topPts = this.footprint.map((p) => ({
-      x: p.x + -(p.x - cameraX) / this.depth,
-      y: p.y + -(p.y - cameraY) / this.depth,
+      x: p.x + (p.x - cameraX) / this.depth,
+      y: p.y + (p.y - cameraY) / this.depth,
     }));
     for (let i = 0; i < this.footprint.length; i++) {
       this.extrusion
